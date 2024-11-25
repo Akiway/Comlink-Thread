@@ -38,5 +38,10 @@
             "path": "languages/fr.json"
         }
     ],
-    "media": []
+    "url": "https://github.com/Akiway/Comlink-Thread",
+    "download": "AUTOMATIC",
+    "manifest": "https://raw.githubusercontent.com/Akiway/Comlink-Thread/refs/heads/main/module.json",
+    "changelog": "https://github.com/Akiway/Comlink-Thread/blob/main/CHANGELOG.md",
+    "readme": "https://github.com/Akiway/Comlink-Thread/blob/main/README.md",
+    "bugs": "https://github.com/Akiway/Comlink-Thread/issues"
 }

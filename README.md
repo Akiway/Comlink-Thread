@@ -9,7 +9,7 @@ Credit for augmented-ui goes to propjockey (https://augmented-ui.com)
 
 ![image](https://user-images.githubusercontent.com/115587388/236695609-c1ea806c-49f6-47fa-a5e1-634ceb2eecd5.png)
 
-**v1.0 features**
+## Features
 * Message creation, _GM only_
   * Select message's emitter from any of the characters available
   * Possibility to send the message as anonymous
@@ -39,14 +39,13 @@ Credit for augmented-ui goes to propjockey (https://augmented-ui.com)
 
 ___
 
-
-**Available languages**
+### Available languages
 * Français
 
 ___
 
 
-**Potential features to come:**
+### Potential features to come
 * Send image instead in message
 * English translation
 * Better player thread management
