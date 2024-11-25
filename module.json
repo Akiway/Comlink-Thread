@@ -39,7 +39,7 @@
         }
     ],
     "url": "https://github.com/Akiway/Comlink-Thread",
-    "download": "AUTOMATIC",
+    "download": "https://github.com/Akiway/Comlink-Thread/releases/latest/download/module.zip",
     "manifest": "https://raw.githubusercontent.com/Akiway/Comlink-Thread/refs/heads/main/module.json",
     "changelog": "https://github.com/Akiway/Comlink-Thread/blob/main/CHANGELOG.md",
     "readme": "https://github.com/Akiway/Comlink-Thread/blob/main/README.md",
