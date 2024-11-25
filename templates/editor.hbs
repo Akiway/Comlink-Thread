@@ -1,0 +1,108 @@
+<!-- Sidebar -->
+<div id="comlink-thread-editor" data-augmented-ui="tl-clip tr-clip br-clip bl-clip border">
+    <h2>Nouveau message</h2>
+
+    <!-- Alias & anonymous -->
+    <div class="feature-block">
+        <label for="alias-select" class="editor-label"><i class="fas fa-user"></i> Alias :</label>
+        <select id="alias-select">
+            <option value="">Message système</option>
+            {{#each actors as |actor|}}
+                <option value="{{actor.id}}">{{actor.name}}</option>
+            {{/each}}
+        </select>
+        <label class="editor-check-wrapper">
+            <input type="checkbox" id="anonymous-checkbox" class="editor-checkbox" />
+            <span class="editor-checkmark"></span>
+            <span class="editor-label"><i class="fas fa-user-secret"></i> Message anonyme</span>
+        </label>
+    </div>
+
+    <div class="feature-block">
+        <label class="editor-check-wrapper">
+            <input type="checkbox" id="fake-chat-checkbox" class="editor-checkbox" />
+            <span class="editor-checkmark"></span>
+            <span class="editor-label"><i class="fas fa-message-code"></i> Fausse conversation</span>
+        </label>
+    </div>
+
+    <!-- Conversation -->
+    <div class="feature-block feature-threads">
+        <label class="editor-label"><i class="fas fa-reel"></i> Conversation :</label>
+        <div class="recipient-list">
+            <label class="editor-check-wrapper">
+                <input type="radio" name="thread-option" value="" class="editor-checkbox thread-option" checked />
+                <span class="editor-checkmark"></span>
+                <span class="editor-label"><i class="fas fa-folder-medical"></i> Nouvelle conversation</span>
+            </label>
+            {{#each fakeThreads as |thread index|}}
+                <label class="editor-check-wrapper">
+                    <input type="radio" name="thread-option" value="{{thread}}" class="editor-checkbox thread-option" />
+                    <span class="editor-checkmark"></span>
+                    <span class="editor-label"><i class="fas fa-folder"></i> Conversation {{index}}</span>
+                </label>
+            {{/each}}
+        </div>
+    </div>
+
+    <!-- Destinataires -->
+    <div class="feature-block feature-recipients">
+        <label class="editor-label"><i class="fas fa-users"></i> Destinataire(s) :</label>
+        <div class="recipient-list">
+            <label class="editor-check-wrapper">
+                <input type="checkbox" name="" value="" class="editor-checkbox recipient-option" checked />
+                <span class="editor-checkmark"></span>
+                <span class="editor-label"><i class="fas fa-users"></i> Tous ({{recipients.length}})</span>
+            </label>
+            {{#each recipientFolders as |recipientFolder|}}
+                <label class="editor-check-wrapper">
+                    <input type="checkbox" data-type="folder" name="{{recipientFolder.folder.id}}" value="{{recipientFolder.folder.id}}" class="editor-checkbox recipient-option" />
+                    <span class="editor-checkmark"></span>
+                    <span class="editor-label"><i class="fas fa-folder-user"></i> {{recipientFolder.folder.name}} ({{recipientFolder.nbRecipient}})</span>
+                </label>
+            {{/each}}
+            {{#each recipients as |recipient|}}
+                <label class="editor-check-wrapper">
+                    <input type="checkbox" data-type="character" name="{{recipient.id}}" value="{{recipient.id}}" class="editor-checkbox recipient-option" />
+                    <span class="editor-checkmark"></span>
+                    <span class="editor-label"><i class="fas fa-user"></i> {{recipient.name}}</span>
+                </label>
+            {{/each}}
+        </div>
+    </div>
+
+    <!-- Alignement du message -->
+    <div class="feature-block feature-alignment">
+        <label for="alignment-select" class="editor-label">Alignement du message :</label>
+        <div class="switch-container">
+          <input type="checkbox" id="alignment-select" class="switch-checkbox" />
+          <label for="alignment-select" class="switch-label-left left-label">
+              <i class="fas fa-align-left"></i>
+              Gauche
+          </label>
+          <label for="alignment-select" class="switch-label-right right-label">
+              Droite
+              <i class="fas fa-align-right"></i>
+          </label>
+        </div>
+    </div>
+
+    <!-- Message & réponse rapide -->
+    <div class="feature-block">
+        <label for="message-input" class="editor-label"><i class="fas fa-message"></i> Message :</label>
+        <textarea id="send-message-content" name="content" class="editor" data-editor></textarea>
+    
+        <label class="editor-check-wrapper">
+            <input type="checkbox" id="quick-answer-checkbox" class="editor-checkbox" />
+            <i class="editor-checkmark"></i>
+            <span class="editor-label"><i class="fas fa-reply-clock"></i> Réponse rapide (oui/non)</span>
+        </label>
+    </div>
+
+    <!-- Actions -->
+    <div class="feature-block">
+        <div id="send-message-btn" data-augmented-ui="tl-clip br-clip border">
+            Envoyer <i class="fas fa-paper-plane-top"></i>
+        </div>
+    </div>
+</div>

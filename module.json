@@ -1,0 +1,42 @@
+{
+    "id": "comlink-thread",
+    "title": "Comlink-Thread",
+    "description": "Système de communication à l'allure Cyberpunk pour Shadowrun",
+    "version": "1.0.0",
+    "compatibility": {
+        "minimum": "12",
+        "verified": "12"
+    },
+    "authors": [
+        {
+            "name": "Akiway",
+            "url": "https://github.com/Akiway",
+            "discord": "akiway"
+        }
+    ],
+    "library": false,
+    "socket": true,
+    "relationships": {
+        "systems": [],
+        "requires": []
+    },
+    "scripts": [
+        "https://cdn.jsdelivr.net/npm/dom-to-image-more"
+    ],
+    "esmodules": [
+        "/scripts/settings.js",
+        "/scripts/main.js"
+    ],
+    "styles": [
+        "/styles/comlink.css",
+        "/styles/augmented-ui.min.css"
+    ],
+    "languages": [
+        {
+            "lang": "fr",
+            "name": "Français",
+            "path": "languages/fr.json"
+        }
+    ],
+    "media": []
+}
