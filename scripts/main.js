@@ -11,7 +11,7 @@ import comlinkFakeThread, {getFakeThreads} from './comlink-fake-thread-applicati
 /**
  * Layer used to add a tool in the app control tools
  */
-class ComlinkLayer extends PlaceablesLayer {
+class ComlinkLayer extends foundry.canvas.layers.PlaceablesLayer {
 
     static documentName = "Scene"
 
@@ -51,18 +51,21 @@ class ComlinkLayer extends PlaceablesLayer {
  */
 Hooks.once("init", async function () {
     const layers = { comlink: { layerClass: ComlinkLayer, group: "primary" } }
-    CONFIG.Canvas.layers = foundry.utils.mergeObject(Canvas.layers, layers);
+    CONFIG.Canvas.layers = foundry.utils.mergeObject(CONFIG.Canvas.layers, layers);
 });
 
-Hooks.once("renderSettingsConfig", (app, html, data) => {
-    // Find the container for our setting
-    const moduleSettings = html.find(`input[name="comlink-thread.resetMessagesAction"]`).parent();
+Hooks.on("renderSettingsConfig", (app, element) => {
+    const root = element instanceof HTMLElement ? element : element?.[0];
+    if (!root) return;
 
-    // Create a custom button
-    const resetButton = $(`<button type="button" style="flex: .5;"><i class="fas fa-trash"></i> Supprimer</button>`);
+    const settingInput = root.querySelector('[name="comlink-thread.resetMessagesAction"]');
+    if (!settingInput) return;
 
-    // Attach a click handler to the button
-    resetButton.on("click", () => {
+    const resetButton = document.createElement("button");
+    resetButton.type = "button";
+    resetButton.style.flex = ".5";
+    resetButton.innerHTML = `<i class="fas fa-trash"></i> Supprimer`;
+    resetButton.addEventListener("click", () => {
         new Dialog({
             title: "Supprimer tous les messages",
             content: "<p>Êtes-vous sûr de vouloir tout supprimer ? Cette action est irréversible.</p>",
@@ -83,8 +86,7 @@ Hooks.once("renderSettingsConfig", (app, html, data) => {
         }).render(true);
     });
 
-    // Append the button to the settings row
-    moduleSettings.find("input").replaceWith(resetButton);
+    settingInput.replaceWith(resetButton);
 });
 
 Hooks.once("ready", function() {
@@ -141,6 +143,11 @@ function updateComlinkForm() {
     setTimeout(() => comlinkForm.render(true), 100); // This will force a re-render
 }
 
+async function renderApplicationTemplate(templatePath, data) {
+    const html = await foundry.applications.handlebars.renderTemplate(templatePath, data);
+    return $(html);
+}
+
 class ComlinkForm extends FormApplication {
     // Define default options for the application
     static get defaultOptions() {
@@ -152,6 +159,10 @@ class ComlinkForm extends FormApplication {
         options.title = "Comlink";
         options.resizable = true;
         return options;
+    }
+
+    async _renderInner(data) {
+        return renderApplicationTemplate(this.template ?? this.options.template, data);
     }
 
     async getData() {
@@ -167,7 +178,7 @@ class ComlinkForm extends FormApplication {
         if (recipientFilter === 'character') {
             usersCharacters = game.users.map((u) => u.character).filter(c => c)
         } else if (recipientFilter === 'ownership') {
-            const userIds = game.users.filter(u => !u.isGM).map((u) => u._id)
+            const userIds = game.users.filter(u => !u.isGM).map((u) => u.id)
             usersCharacters = actors.filter(actor => {
                 return Object.entries(actor.ownership).some(([userId, level]) => {
                     return userIds.includes(userId) && level >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
@@ -181,10 +192,10 @@ class ComlinkForm extends FormApplication {
         let usersCharactersFolders = []
         const showFolders = game.settings.get("comlink-thread", "recipientFoldersOption")
         if (showFolders && recipientFilter !== 'all') {
-            const usersCharactersIds = usersCharacters.map(c => c._id)
+            const usersCharactersIds = usersCharacters.map(c => c.id)
 
             usersCharactersFolders = game.folders
-                .filter(f => f.type === "Actor" && f.contents.some(c => usersCharactersIds.includes(c._id)))
+                .filter(f => f.type === "Actor" && f.contents.some(c => usersCharactersIds.includes(c.id)))
                 .map(folder => ({ folder, nbRecipient: folder.contents.filter(c => c.hasPlayerOwner).length }) )
         }
 
@@ -286,7 +297,7 @@ function getFormRecipientIds(html) {
             // Récupérer le dossier avec les personnages
             const folder = game.folders.get(checkbox.value)
             // Filtrer et ajouter uniquement les perso des joueurs
-            folder.contents.filter(c => c.hasPlayerOwner).forEach(c => selectedValues.add(c._id))
+            folder.contents.filter(c => c.hasPlayerOwner).forEach(c => selectedValues.add(c.id))
         }
     });
 
@@ -306,6 +317,10 @@ class ComlinkThread extends Application {
         options.title = "Comlink Thread";
         options.resizable = true;
         return options;
+    }
+
+    async _renderInner(data) {
+        return renderApplicationTemplate(this.template ?? this.options.template, data);
     }
 
     // Optionally, add listeners for interactivity
@@ -550,7 +565,8 @@ function toggleComlinkMessageOffline(messageId) {
 }
 
 async function answerQuickComlinkMessage(messageId, response) {
-    if (!game.user.character._id) {
+    const characterId = game.user.character?.id;
+    if (!characterId) {
         ui.notifications.error("Aucun personnage sélectionné pour envoyer le message Comlink");
         return;
     }
@@ -567,7 +583,7 @@ async function answerQuickComlinkMessage(messageId, response) {
         id: foundry.utils.randomID(),
         author: game.userId,
         timestamp: Date.now(),
-        senderId: game.user.character._id,
+        senderId: characterId,
         recipientIds: [message.senderId],
         isAdmin: false,
         isRight: true,
@@ -593,17 +609,11 @@ const comlinkThread = new ComlinkThread()
  * Controls: adds a new Comlink Thread control
  */
 Hooks.on('getSceneControlButtons', (buttons) => {
-    const comlinkTool = {
-        icon: "fas fa-messages",
-        layer: "comlink",
-        name: "comlink",
-        title: "Comlink",
-        tools: [],
-        visible: true
-    }
+    const isV12Array = Array.isArray(buttons);
+    const tools = [];
 
-    if(game.user.isGM) {
-        comlinkTool.tools.push({
+    if (game.user.isGM) {
+        tools.push({
             name: "add-message",
             icon: "fas fa-message-plus",
             title: "Nouveau message",
@@ -611,9 +621,10 @@ Hooks.on('getSceneControlButtons', (buttons) => {
             onClick: () => {
                 comlinkForm.render(true);
             }
-        })
+        });
     }
-    comlinkTool.tools.push({
+
+    tools.push({
         name: "conversation",
         icon: "fas fa-message-lines",
         title: "Messagerie",
@@ -621,9 +632,10 @@ Hooks.on('getSceneControlButtons', (buttons) => {
         onClick: () => {
             comlinkThread.render(true);
         }
-    })
-    if(game.user.isGM) {
-        comlinkTool.tools.push({
+    });
+
+    if (game.user.isGM) {
+        tools.push({
             name: "fake-conversation",
             icon: "fas fa-message-code",
             title: "Fausse conversation",
@@ -631,10 +643,41 @@ Hooks.on('getSceneControlButtons', (buttons) => {
             onClick: () => {
                 comlinkFakeThread.render(true);
             }
-        })
+        });
     }
 
-    buttons.push(comlinkTool)
+    if (isV12Array) {
+        buttons.push({
+            icon: "fas fa-messages",
+            layer: "comlink",
+            name: "comlink",
+            title: "Comlink",
+            tools,
+            visible: true
+        });
+        return;
+    }
+
+    const v13Tools = Object.fromEntries(
+        tools.map((tool, order) => [tool.name, {
+            name: tool.name,
+            icon: tool.icon,
+            title: tool.title,
+            button: true,
+            order,
+            onChange: () => tool.onClick()
+        }])
+    );
+
+    buttons.comlink = {
+        name: "comlink",
+        title: "Comlink",
+        icon: "fas fa-messages",
+        order: Object.keys(buttons).length,
+        visible: true,
+        activeTool: "conversation",
+        tools: v13Tools
+    };
 })
 
 

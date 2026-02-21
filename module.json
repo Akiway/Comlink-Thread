@@ -2,10 +2,10 @@
     "id": "comlink-thread",
     "title": "Comlink-Thread",
     "description": "Système de communication à l'allure Cyberpunk pour Shadowrun",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "compatibility": {
-        "minimum": "12",
-        "verified": "12"
+        "minimum": "13",
+        "verified": "13"
     },
     "authors": [
         {

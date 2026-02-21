@@ -1,5 +1,15 @@
 # Changelog
 
+## [ 1.0.1 ] 21/02/2026
+* Foundry VTT v13 compatibility update
+    * `module.json` updated to `minimum: 13` and `verified: 13`
+    * Replaced deprecated `_id` usages with `id` in active code paths
+    * Fixed quick-answer sender resolution when no character is selected (`game.user.character?.id`)
+    * Updated canvas layer registration to merge into `CONFIG.Canvas.layers`
+    * Updated settings render hook to support v13 render element usage
+    * Fixed invalid setting registration (`type: null`) by using `type: String`
+    * Added explicit `type: String` for recipient filter setting
+
 ## [ 1.0.0 ] 25/11/2024
 * Message creation, _GM only_
     * Select message's emitter from any of the characters available

@@ -12,7 +12,7 @@
                 <span class="name">Conversation générale</span>
             </div>
             {{#each contacts as |contact|}}
-                <div class="comlink-contact {{#if contact.isOffline}}contact-offline{{/if}}" data-sender-id="{{contact.sender._id}}">
+                <div class="comlink-contact {{#if contact.isOffline}}contact-offline{{/if}}" data-sender-id="{{contact.sender.id}}">
                     <div class="profile-pic-wrapper">
                         <img class="profile-pic" src="{{contact.sender.img}}">
                    </div>
@@ -58,7 +58,7 @@
                             <div class="message-box">
     {{!--                             <div class="message-recipients"> --}}
     {{!--                                 {{#each message.recipients as |recipient|}} --}}
-    {{!--                                     <img data-user-id="{{recipient._id}}" class="profile-pic" src="{{recipient.img}}" data-tooltip="Destinataire ({{recipient.name}})"> --}}
+    {{!--                                     <img data-user-id="{{recipient.id}}" class="profile-pic" src="{{recipient.img}}" data-tooltip="Destinataire ({{recipient.name}})"> --}}
     {{!--                                 {{/each}} --}}
     {{!--                             </div> --}}
                                 <div class="message-content" data-augmented-ui="{{#if message.isRight}}br-clip tl-2-clip-x{{/if}}{{#unless message.isRight}}bl-clip tr-2-clip-x{{/unless}}">

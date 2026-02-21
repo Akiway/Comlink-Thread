@@ -20,7 +20,8 @@ Hooks.once("init", async function () {
         hint: "Supprimer l'intégralité des messages échangés entre les joueurs et le MJ.",
         scope: "world", // 'world' for global settings, 'client' for per-user settings
         config: true, // Whether to show this setting in the Configuration UI
-        type: null,
+        type: String,
+        default: "",
         restricted: true // Restrict to GMs only
     });
     game.settings.register("comlink-thread", "recipientFilterOption", {
@@ -29,6 +30,7 @@ Hooks.once("init", async function () {
         scope: "world", // 'world' for global settings, 'client' for per-user settings
         config: true, // Whether to show this setting in the Configuration UI
         restricted: true, // Restrict to GMs only
+        type: String,
         // Creates a select dropdown
         choices: {
             "character": "Personnage principal de chaque joueur",

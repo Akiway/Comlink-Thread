@@ -1,5 +1,9 @@
 import {createComlinkJournalEntryScreenshot, openActorSheet, saveThreadAsJournalEntry, scrollToBottom} from './utils.js'
 
+async function renderApplicationTemplate(templatePath, data) {
+    const html = await foundry.applications.handlebars.renderTemplate(templatePath, data);
+    return $(html);
+}
 
 class ComlinkFakeThread extends Application {
     // Define default options for the application
@@ -12,6 +16,10 @@ class ComlinkFakeThread extends Application {
         options.title = "Comlink Fake Thread";
         options.resizable = true;
         return options;
+    }
+
+    async _renderInner(data) {
+        return renderApplicationTemplate(this.template ?? this.options.template, data);
     }
 
 
