@@ -8,22 +8,25 @@ export function amIRecipient(message) {
     if (!message.recipientIds?.length) return true;
 
     // Is one of my characters listed as a recipient
-    const playerCharactersIds = getPlayerCharacters(game.user._id).map(c => c._id)
+    const playerCharactersIds = getPlayerCharacters(game.user.id).map(c => c.id)
     return message.recipientIds.some(recipientId => playerCharactersIds.includes(recipientId))
 
     // if (ownershipIncluded) {
     //     // Is one of my characters listed as a recipient
-    //     const playerCharactersIds = getPlayerCharacters(game.user._id).map(c => c._id)
+    //     const playerCharactersIds = getPlayerCharacters(game.user.id).map(c => c.id)
     //
     //     return message.recipients.some(recipient => playerCharactersIds.includes(recipient))
     // } else {
     //     // Is my main character listed as a recipient
-    //     return message.recipients.some(recipient => recipient === game.user.character._id)
+    //     return message.recipients.some(recipient => recipient === game.user.character?.id)
     // }
 }
 
-export function saveThreadAsJournalEntry(html) {
-    const node = html.find('.mode-screenshot')[0]
+export function saveThreadAsJournalEntry(rootElement) {
+    const root = rootElement instanceof HTMLElement ? rootElement : rootElement?.[0];
+    const node = root?.querySelector(".mode-screenshot");
+    if (!node) return;
+
     node.classList.add('active')
 
     setTimeout(async () => {
@@ -79,7 +82,7 @@ export async function createComlinkJournalEntryScreenshot(imageBase64) {
 
 export function amISender(message) {
     // Did I write the message
-    return message.senderId === game.user.character._id
+    return message.senderId === game.user.character?.id
 }
 
 ////// DOM utils

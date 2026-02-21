@@ -50,4 +50,3 @@ ___
 * English translation
 * Better player thread management
 * Better GM thread management
-* Refacto to convert windows from Application into ApplicationV2

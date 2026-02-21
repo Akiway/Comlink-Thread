@@ -8,10 +8,12 @@ import {
 } from './utils.js'
 import comlinkFakeThread, {getFakeThreads} from './comlink-fake-thread-application.js'
 
+const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
 /**
  * Layer used to add a tool in the app control tools
  */
-class ComlinkLayer extends PlaceablesLayer {
+class ComlinkLayer extends foundry.canvas.layers.PlaceablesLayer {
 
     static documentName = "Scene"
 
@@ -51,18 +53,21 @@ class ComlinkLayer extends PlaceablesLayer {
  */
 Hooks.once("init", async function () {
     const layers = { comlink: { layerClass: ComlinkLayer, group: "primary" } }
-    CONFIG.Canvas.layers = foundry.utils.mergeObject(Canvas.layers, layers);
+    CONFIG.Canvas.layers = foundry.utils.mergeObject(CONFIG.Canvas.layers, layers);
 });
 
-Hooks.once("renderSettingsConfig", (app, html, data) => {
-    // Find the container for our setting
-    const moduleSettings = html.find(`input[name="comlink-thread.resetMessagesAction"]`).parent();
+Hooks.on("renderSettingsConfig", (app, element) => {
+    const root = element instanceof HTMLElement ? element : element?.[0];
+    if (!root) return;
 
-    // Create a custom button
-    const resetButton = $(`<button type="button" style="flex: .5;"><i class="fas fa-trash"></i> Supprimer</button>`);
+    const settingInput = root.querySelector('[name="comlink-thread.resetMessagesAction"]');
+    if (!settingInput) return;
 
-    // Attach a click handler to the button
-    resetButton.on("click", () => {
+    const resetButton = document.createElement("button");
+    resetButton.type = "button";
+    resetButton.style.flex = ".5";
+    resetButton.innerHTML = `<i class="fas fa-trash"></i> Supprimer`;
+    resetButton.addEventListener("click", () => {
         new Dialog({
             title: "Supprimer tous les messages",
             content: "<p>Êtes-vous sûr de vouloir tout supprimer ? Cette action est irréversible.</p>",
@@ -83,8 +88,7 @@ Hooks.once("renderSettingsConfig", (app, html, data) => {
         }).render(true);
     });
 
-    // Append the button to the settings row
-    moduleSettings.find("input").replaceWith(resetButton);
+    settingInput.replaceWith(resetButton);
 });
 
 Hooks.once("ready", function() {
@@ -105,7 +109,7 @@ Hooks.once("ready", function() {
             notifyMessageReceived();
         }
         // Comlink display might need a refresh
-        else if (comlinkThread.rendered) {
+        else if (comlinkThread.rendered || comlinkThread.element) {
             // Triggered when the list of messages has been updated
             if (data.action === 'updateMessages') {
                 updateComlinkDisplay();
@@ -128,64 +132,74 @@ Hooks.once("ready", function() {
 
 // Function to update the message display
 function updateComlinkDisplay() {
-    setTimeout(() => comlinkThread.render(true), 100); // This will force a re-render
+    setTimeout(() => comlinkThread.render({force: true}), 100); // This will force a re-render
 }
 
 // Function to update the fake message display
 function updateComlinkFakeDisplay() {
-    setTimeout(() => comlinkFakeThread.render(true), 100); // This will force a re-render
+    setTimeout(() => comlinkFakeThread.render({force: true}), 100); // This will force a re-render
 }
 
 // Function to update the fake message display
 function updateComlinkForm() {
-    setTimeout(() => comlinkForm.render(true), 100); // This will force a re-render
+    setTimeout(() => comlinkForm.render({force: true}), 100); // This will force a re-render
 }
 
-class ComlinkForm extends FormApplication {
-    // Define default options for the application
-    static get defaultOptions() {
-        const options = super.defaultOptions;
-        options.id = "comlink-form-window";
-        options.template = "modules/comlink-thread/templates/editor.hbs"; // Point to your template path
-        options.width = 380;
-        options.height = 718;
-        options.title = "Comlink";
-        options.resizable = true;
-        return options;
-    }
+function getApplicationRootElement(app) {
+    if (app?.element instanceof HTMLElement) return app.element;
+    if (app?.element?.[0] instanceof HTMLElement) return app.element[0];
+    return null;
+}
 
-    async getData() {
-        console.log('getData game', game)
+class ComlinkForm extends HandlebarsApplicationMixin(ApplicationV2) {
+    static DEFAULT_OPTIONS = {
+        id: "comlink-form-window",
+        tag: "section",
+        position: {
+            width: 380,
+            height: 718
+        },
+        window: {
+            title: "Comlink",
+            resizable: true
+        }
+    };
 
+    static PARTS = {
+        main: {
+            template: "modules/comlink-thread/templates/editor.hbs"
+        }
+    };
+
+    async _prepareContext() {
         // Alias
-        const actors =  game.actors.filter((a) => a.type === "character");
-        console.log('getData actors', actors)
+        const actors = game.actors.filter((a) => a.type === "character");
 
         // Recipients
-        const recipientFilter = game.settings.get("comlink-thread", "recipientFilterOption")
-        let usersCharacters = []
-        if (recipientFilter === 'character') {
-            usersCharacters = game.users.map((u) => u.character).filter(c => c)
-        } else if (recipientFilter === 'ownership') {
-            const userIds = game.users.filter(u => !u.isGM).map((u) => u._id)
+        const recipientFilter = game.settings.get("comlink-thread", "recipientFilterOption");
+        let usersCharacters = [];
+        if (recipientFilter === "character") {
+            usersCharacters = game.users.map((u) => u.character).filter(c => c);
+        } else if (recipientFilter === "ownership") {
+            const userIds = game.users.filter(u => !u.isGM).map((u) => u.id);
             usersCharacters = actors.filter(actor => {
                 return Object.entries(actor.ownership).some(([userId, level]) => {
                     return userIds.includes(userId) && level >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
                 });
             });
         } else {
-            usersCharacters = actors
+            usersCharacters = actors;
         }
 
         // Recipient folders
-        let usersCharactersFolders = []
-        const showFolders = game.settings.get("comlink-thread", "recipientFoldersOption")
-        if (showFolders && recipientFilter !== 'all') {
-            const usersCharactersIds = usersCharacters.map(c => c._id)
+        let usersCharactersFolders = [];
+        const showFolders = game.settings.get("comlink-thread", "recipientFoldersOption");
+        if (showFolders && recipientFilter !== "all") {
+            const usersCharactersIds = usersCharacters.map(c => c.id);
 
             usersCharactersFolders = game.folders
-                .filter(f => f.type === "Actor" && f.contents.some(c => usersCharactersIds.includes(c._id)))
-                .map(folder => ({ folder, nbRecipient: folder.contents.filter(c => c.hasPlayerOwner).length }) )
+                .filter(f => f.type === "Actor" && f.contents.some(c => usersCharactersIds.includes(c.id)))
+                .map(folder => ({ folder, nbRecipient: folder.contents.filter(c => c.hasPlayerOwner).length }));
         }
 
         return {
@@ -193,35 +207,38 @@ class ComlinkForm extends FormApplication {
             recipients: usersCharacters,
             recipientFolders: usersCharactersFolders,
             fakeThreads: getFakeThreads()
-        }
+        };
     }
 
-    // Optionally, add listeners for interactivity
-    activateListeners(html) {
-        super.activateListeners(html);
-        html.find('.close-btn').click(this.close.bind(this));
+    _onRender(context, options) {
+        super._onRender(context, options);
+
+        const root = getApplicationRootElement(this);
+        if (!root) return;
 
         // Special checkbox "all" for recipients
-        html.find('.recipient-option').change((el) => {
-            const { checked, value } = el.currentTarget
-            if (checked && value === '') {
-                html.find('.recipient-option:not([value=""]):checked')?.each((index, input) => {
-                    input.checked = false
-                })
-            } else if (checked && value !== '') {
-                const checkbox = html.find('.recipient-option[value=""]:checked')?.[0]
-                if (checkbox) checkbox.checked = false
-            }
-        })
-        html.find('#send-message-btn').click(() => {
-            const content = html.find('#send-message-content').val()
+        root.querySelectorAll(".recipient-option").forEach((checkbox) => {
+            checkbox.addEventListener("change", (event) => {
+                const { checked, value } = event.currentTarget;
+                if (checked && value === "") {
+                    root.querySelectorAll('.recipient-option:not([value=""])').forEach((input) => {
+                        input.checked = false;
+                    });
+                } else if (checked && value !== "") {
+                    const allCheckbox = root.querySelector('.recipient-option[value=""]');
+                    if (allCheckbox?.checked) allCheckbox.checked = false;
+                }
+            });
+        });
+
+        root.querySelector("#send-message-btn")?.addEventListener("click", () => {
+            const content = root.querySelector("#send-message-content")?.value;
             if (!content) return;
 
-            const isFakeChat = html.find('#fake-chat-checkbox')[0].checked
+            const isFakeChat = !!root.querySelector("#fake-chat-checkbox")?.checked;
             if (isFakeChat) {
-                const senderId = html.find('#alias-select').val()
-
-                const threadId = html.find('.thread-option:checked').val();
+                const senderId = root.querySelector("#alias-select")?.value;
+                const threadId = root.querySelector(".thread-option:checked")?.value;
 
                 // Create a new message object
                 const newMessage = {
@@ -230,18 +247,18 @@ class ComlinkForm extends FormApplication {
                     timestamp: Date.now(),
                     senderId,
                     threadId: threadId || foundry.utils.randomID(),
-                    isAdmin: html.find('#alias-select').val() === '',
-                    isRight: html.find('#alignment-select')[0].checked,
-                    isAnonymous: html.find('#anonymous-checkbox')[0].checked,
+                    isAdmin: root.querySelector("#alias-select")?.value === "",
+                    isRight: !!root.querySelector("#alignment-select")?.checked,
+                    isAnonymous: !!root.querySelector("#anonymous-checkbox")?.checked,
                     isOffline: false,
                     content
                 };
 
-                createFakeComlinkMessage(newMessage, !threadId)
+                createFakeComlinkMessage(newMessage, !threadId);
             } else {
-                const senderId = html.find('#alias-select').val()
+                const senderId = root.querySelector("#alias-select")?.value;
 
-                const recipientIds = getFormRecipientIds(html)
+                const recipientIds = getFormRecipientIds(root);
 
                 // Create a new message object
                 const newMessage = {
@@ -250,180 +267,222 @@ class ComlinkForm extends FormApplication {
                     timestamp: Date.now(),
                     senderId,
                     recipientIds,
-                    isAdmin: html.find('#alias-select').val() === '',
+                    isAdmin: root.querySelector("#alias-select")?.value === "",
                     isRight: false,
-                    isAnonymous: html.find('#anonymous-checkbox')[0].checked,
+                    isAnonymous: !!root.querySelector("#anonymous-checkbox")?.checked,
                     isOffline: false,
-                    isQuickAnswerAvailable: html.find('#quick-answer-checkbox')[0].checked,
+                    isQuickAnswerAvailable: !!root.querySelector("#quick-answer-checkbox")?.checked,
                     content
                 };
 
                 createComlinkMessage(newMessage);
             }
-        })
+        });
     }
 }
 
 /**
  * Retrieve list of recipients based on recipient-option checked
- * @param html
- * @returns {any[]|*[]}
+ * @param {HTMLElement} root
+ * @returns {string[]}
  */
-function getFormRecipientIds(html) {
+function getFormRecipientIds(root) {
     // Sélectionner toutes les cases à cocher ayant le nom "option"
-    const checkedBoxes = [...html.find('.recipient-option:checked')];
+    const checkedBoxes = [...root.querySelectorAll(".recipient-option:checked")];
 
     // S'arrêter ici si l'option "Tous" est cochée
-    if (checkedBoxes.some(c => !c.value)) return []
+    if (checkedBoxes.some(c => !c.value)) return [];
 
     // Créer un tableau pour stocker les valeurs sélectionnées
     const selectedValues = new Set();
     // Parcourir les cases cochées et récupérez leurs valeurs
     checkedBoxes.forEach(checkbox => {
-        if (checkbox.dataset.type === 'character') {
-            selectedValues.add(checkbox.value)
-        } else if (checkbox.dataset.type === 'folder') {
+        if (checkbox.dataset.type === "character") {
+            selectedValues.add(checkbox.value);
+        } else if (checkbox.dataset.type === "folder") {
             // Récupérer le dossier avec les personnages
-            const folder = game.folders.get(checkbox.value)
+            const folder = game.folders.get(checkbox.value);
             // Filtrer et ajouter uniquement les perso des joueurs
-            folder.contents.filter(c => c.hasPlayerOwner).forEach(c => selectedValues.add(c._id))
+            folder?.contents.filter(c => c.hasPlayerOwner).forEach(c => selectedValues.add(c.id));
         }
     });
 
     // Convertir le set sans doublon en array
-    return [...selectedValues.values()]
+    return [...selectedValues.values()];
 }
 
 
-class ComlinkThread extends Application {
-    // Define default options for the application
-    static get defaultOptions() {
-        const options = super.defaultOptions;
-        options.id = "comlink-thread-window";
-        options.template = "modules/comlink-thread/templates/display.hbs"; // Point to your template path
-        options.width = 900;
-        options.height = 500;
-        options.title = "Comlink Thread";
-        options.resizable = true;
-        return options;
-    }
+class ComlinkThread extends HandlebarsApplicationMixin(ApplicationV2) {
+    static DEFAULT_OPTIONS = {
+        id: "comlink-thread-window",
+        tag: "section",
+        position: {
+            width: 900,
+            height: 500
+        },
+        window: {
+            title: "Comlink Thread",
+            resizable: true
+        }
+    };
 
-    // Optionally, add listeners for interactivity
-    activateListeners(html) {
-        super.activateListeners(html);
-        html.find('.close-btn').click(this.close.bind(this));
+    static PARTS = {
+        main: {
+            template: "modules/comlink-thread/templates/display.hbs"
+        }
+    };
+
+    _onRender(context, options) {
+        super._onRender(context, options);
+
+        const root = getApplicationRootElement(this);
+        if (!root) return;
 
         const currentThread = game.settings.get("comlink-thread", "currentThread");
-        this._updateMessagesVisibility(html, currentThread.type, currentThread.userId)
+        this._updateMessagesVisibility(root, currentThread.type, currentThread.userId);
 
-        if(game.user.isGM) {
-            html.find('.delete-btn').click((el) => {
-                deleteComlinkMessage(el.currentTarget.parentElement.parentElement.dataset.messageId)
-            })
-            html.find('.screenshot-btn').click(() => {
-                saveThreadAsJournalEntry(html)
-            })
-            html.find('.move-up-btn').click((el) => {
-                moveUpComlinkMessage(el.currentTarget.parentElement.parentElement.dataset.messageId)
-            })
-            html.find('.move-down-btn').click((el) => {
-                moveDownComlinkMessage(el.currentTarget.parentElement.parentElement.dataset.messageId)
-            })
-            html.find('.toggle-anonymous-btn').click((el) => {
-                toggleComlinkMessageAnonymous(el.currentTarget.parentElement.parentElement.dataset.messageId)
-            })
-            html.find('.toggle-offline-btn').click((el) => {
-                toggleComlinkMessageOffline(el.currentTarget.parentElement.parentElement.dataset.messageId)
-            })
+        if (game.user.isGM) {
+            root.querySelectorAll(".delete-btn").forEach((button) => {
+                button.addEventListener("click", (event) => {
+                    const messageId = event.currentTarget.closest("[data-message-id]")?.dataset.messageId;
+                    if (messageId) deleteComlinkMessage(messageId);
+                });
+            });
+            root.querySelector(".screenshot-btn")?.addEventListener("click", () => {
+                saveThreadAsJournalEntry(root);
+            });
+            root.querySelectorAll(".move-up-btn").forEach((button) => {
+                button.addEventListener("click", (event) => {
+                    const messageId = event.currentTarget.closest("[data-message-id]")?.dataset.messageId;
+                    if (messageId) moveUpComlinkMessage(messageId);
+                });
+            });
+            root.querySelectorAll(".move-down-btn").forEach((button) => {
+                button.addEventListener("click", (event) => {
+                    const messageId = event.currentTarget.closest("[data-message-id]")?.dataset.messageId;
+                    if (messageId) moveDownComlinkMessage(messageId);
+                });
+            });
+            root.querySelectorAll(".toggle-anonymous-btn").forEach((button) => {
+                button.addEventListener("click", (event) => {
+                    const messageId = event.currentTarget.closest("[data-message-id]")?.dataset.messageId;
+                    if (messageId) toggleComlinkMessageAnonymous(messageId);
+                });
+            });
+            root.querySelectorAll(".toggle-offline-btn").forEach((button) => {
+                button.addEventListener("click", (event) => {
+                    const messageId = event.currentTarget.closest("[data-message-id]")?.dataset.messageId;
+                    if (messageId) toggleComlinkMessageOffline(messageId);
+                });
+            });
         } else {
-            html.find('.accept-btn').click((el) => {
-                answerQuickComlinkMessage(el.currentTarget.parentElement.dataset.messageId, true)
-            })
-            html.find('.refuse-btn').click((el) => {
-                answerQuickComlinkMessage(el.currentTarget.parentElement.dataset.messageId, false)
-            })
+            root.querySelectorAll(".accept-btn").forEach((button) => {
+                button.addEventListener("click", (event) => {
+                    const messageId = event.currentTarget.closest("[data-message-id]")?.dataset.messageId;
+                    if (messageId) answerQuickComlinkMessage(messageId, true);
+                });
+            });
+            root.querySelectorAll(".refuse-btn").forEach((button) => {
+                button.addEventListener("click", (event) => {
+                    const messageId = event.currentTarget.closest("[data-message-id]")?.dataset.messageId;
+                    if (messageId) answerQuickComlinkMessage(messageId, false);
+                });
+            });
         }
-        html.find('#comlink-thread-user-page').click((el) => {
-            openActorSheet(el.currentTarget.dataset.userId)
-        })
-        html.find('.message .profile-pic').dblclick((el) => {
-            if (el.currentTarget.dataset.userId) openActorSheet(el.currentTarget.dataset.userId)
-        })
+
+        root.querySelector("#comlink-thread-user-page")?.addEventListener("click", (event) => {
+            openActorSheet(event.currentTarget.dataset.userId);
+        });
+        root.querySelectorAll(".message .profile-pic").forEach((picture) => {
+            picture.addEventListener("dblclick", (event) => {
+                const userId = event.currentTarget.dataset.userId;
+                if (userId) openActorSheet(userId);
+            });
+        });
         // All messages conv
-        html.find('.comlink-contact.all').click(() => {
-            this._updateMessagesVisibility(html, 'all', null)
+        root.querySelector(".comlink-contact.all")?.addEventListener("click", () => {
+            this._updateMessagesVisibility(root, "all", null);
 
-            game.settings.set("comlink-thread", "currentThread", {type: 'all', userId: null});
-        })
+            game.settings.set("comlink-thread", "currentThread", {type: "all", userId: null});
+        });
         // Group conv
-        html.find('.comlink-contact.group').click(() => {
-            this._updateMessagesVisibility(html, 'group', null)
+        root.querySelector(".comlink-contact.group")?.addEventListener("click", () => {
+            this._updateMessagesVisibility(root, "group", null);
 
-            game.settings.set("comlink-thread", "currentThread", {type: 'group', userId: null});
-        })
+            game.settings.set("comlink-thread", "currentThread", {type: "group", userId: null});
+        });
         // Character conv
-        html.find('.comlink-contact:not(.group):not(.all)').click((el) => {
-            const senderId = el.currentTarget.dataset.senderId;
-            this._updateMessagesVisibility(html, 'character', senderId)
+        root.querySelectorAll(".comlink-contact:not(.group):not(.all)").forEach((contact) => {
+            contact.addEventListener("click", (event) => {
+                const senderId = event.currentTarget.dataset.senderId;
+                this._updateMessagesVisibility(root, "character", senderId);
 
-            game.settings.set("comlink-thread", "currentThread", {type: 'character', userId: senderId});
-        })
-
+                game.settings.set("comlink-thread", "currentThread", {type: "character", userId: senderId});
+            });
+        });
     }
 
-    _updateMessagesVisibility(html, type, userId) {
-        let visibleMessages = null
-        let hiddenMessages = null
-        if (type === 'character') {
-            visibleMessages = html.find(`.message[data-sender-id="${userId}"]:not(.message-anonymous), .message[data-recipient-ids*="${userId}"]:not(.message-anonymous)`);
-            hiddenMessages = html.find(`.message-anonymous, .message:not([data-sender-id="${userId}"]):not([data-recipient-ids*="${userId}"])`);
-        } else if (type === 'group') {
-            visibleMessages = html.find(`.message[data-recipient-ids=""]`);
-            hiddenMessages = html.find(`.message:not([data-recipient-ids=""])`);
+    _updateMessagesVisibility(root, type, userId) {
+        let visibleMessages = [];
+        let hiddenMessages = [];
+        if (type === "character") {
+            visibleMessages = [...root.querySelectorAll(`.message[data-sender-id="${userId}"]:not(.message-anonymous), .message[data-recipient-ids*="${userId}"]:not(.message-anonymous)`)];
+            hiddenMessages = [...root.querySelectorAll(`.message-anonymous, .message:not([data-sender-id="${userId}"]):not([data-recipient-ids*="${userId}"])`)];
+        } else if (type === "group") {
+            visibleMessages = [...root.querySelectorAll('.message[data-recipient-ids=""]')];
+            hiddenMessages = [...root.querySelectorAll('.message:not([data-recipient-ids=""])')];
         } else {
-            visibleMessages = html.find(`.message`);
+            visibleMessages = [...root.querySelectorAll(".message")];
         }
 
         // Make sure they're visible
-        visibleMessages?.each((index, m) => {
-            m.hidden = false
-        })
+        visibleMessages.forEach((message) => {
+            message.hidden = false;
+        });
         // Make sure they're hidden
-        hiddenMessages?.each((index, m) => {
-            m.hidden = true
-        })
+        hiddenMessages.forEach((message) => {
+            message.hidden = true;
+        });
 
-        html.find('.user-page-btn')[0].dataset.userId = userId
-        html.find('.comlink-container')[0].dataset.threadType = type
+        const userPageBtn = root.querySelector(".user-page-btn");
+        if (userPageBtn) userPageBtn.dataset.userId = userId ?? "";
 
-        scrollToBottom(html.find('.comlink-message-list')[0])
+        const container = root.querySelector(".comlink-container");
+        if (container) container.dataset.threadType = type;
+
+        const messageList = root.querySelector(".comlink-message-list");
+        if (messageList) scrollToBottom(messageList);
     }
 
-    async getData() {
+    async _prepareContext() {
         let messages = game.settings.get("comlink-thread", "messages");
-        messages = messages.filter(m => game.user.isGM || amIRecipient(m) || amISender(m))
-        const contacts = new Map()
+        messages = messages.filter(m => game.user.isGM || amIRecipient(m) || amISender(m));
+        const contacts = new Map();
         messages.forEach(m => {
             // Retrieve actors objects
-            m.sender = game.actors.get(m.senderId)
-            m.recipients = m.recipientIds.map(id => game.actors.get(id))
+            m.sender = game.actors.get(m.senderId);
+            m.recipients = m.recipientIds.map(id => game.actors.get(id));
 
             // Push contacts
-            if (!m.isAdmin && !m.isRight && !m.isAnonymous && (game.user.isGM || amIRecipient(m))) contacts.set(m.senderId, {
-                sender: m.sender,
-                isOffline: contacts.get(m.senderId)?.isOffline || m.isOffline
-            })
-        })
+            if (!m.isAdmin && !m.isRight && !m.isAnonymous && (game.user.isGM || amIRecipient(m))) {
+                contacts.set(m.senderId, {
+                    sender: m.sender,
+                    isOffline: contacts.get(m.senderId)?.isOffline || m.isOffline
+                });
+            }
+        });
 
         // Check if currentThread needs to be reset, to prevent opening on a deleted thread
         const currentThread = game.settings.get("comlink-thread", "currentThread");
-        if (currentThread.userId && !contacts.get(currentThread.userId)) game.settings.set("comlink-thread", "currentThread", {type: 'all', userId: null});
+        if (currentThread.userId && !contacts.get(currentThread.userId)) {
+            game.settings.set("comlink-thread", "currentThread", {type: "all", userId: null});
+        }
 
         return {
             messages,
             contacts: [...contacts.values()],
             isGM: game.user.isGM
-        }
+        };
     }
 }
 
@@ -550,7 +609,8 @@ function toggleComlinkMessageOffline(messageId) {
 }
 
 async function answerQuickComlinkMessage(messageId, response) {
-    if (!game.user.character._id) {
+    const characterId = game.user.character?.id;
+    if (!characterId) {
         ui.notifications.error("Aucun personnage sélectionné pour envoyer le message Comlink");
         return;
     }
@@ -567,7 +627,7 @@ async function answerQuickComlinkMessage(messageId, response) {
         id: foundry.utils.randomID(),
         author: game.userId,
         timestamp: Date.now(),
-        senderId: game.user.character._id,
+        senderId: characterId,
         recipientIds: [message.senderId],
         isAdmin: false,
         isRight: true,
@@ -592,49 +652,71 @@ const comlinkThread = new ComlinkThread()
 /**
  * Controls: adds a new Comlink Thread control
  */
-Hooks.on('getSceneControlButtons', (buttons) => {
-    const comlinkTool = {
-        icon: "fas fa-messages",
-        layer: "comlink",
-        name: "comlink",
-        title: "Comlink",
-        tools: [],
-        visible: true
-    }
+Hooks.on("getSceneControlButtons", (controls) => {
+    const maxOrder = Math.max(0, ...Object.values(controls).map(control => control.order ?? 0));
 
-    if(game.user.isGM) {
-        comlinkTool.tools.push({
+    const v13Tools = {
+        idle: {
+            name: "idle",
+            icon: "fas fa-messages",
+            title: "Mode Comlink",
+            order: 0,
+            button: false,
+            visible: true,
+            onChange: () => {}
+        },
+        conversation: {
+            name: "conversation",
+            icon: "fas fa-message-lines",
+            title: "Messagerie",
+            order: 1,
+            button: true,
+            visible: true,
+            onChange: (event, active) => {
+                if (!active) return;
+                comlinkThread.render({force: true});
+            }
+        }
+    };
+
+    if (game.user.isGM) {
+        v13Tools["add-message"] = {
             name: "add-message",
             icon: "fas fa-message-plus",
             title: "Nouveau message",
+            order: 2,
             button: true,
-            onClick: () => {
-                comlinkForm.render(true);
+            visible: true,
+            onChange: (event, active) => {
+                if (!active) return;
+                comlinkForm.render({force: true});
             }
-        })
-    }
-    comlinkTool.tools.push({
-        name: "conversation",
-        icon: "fas fa-message-lines",
-        title: "Messagerie",
-        button: true,
-        onClick: () => {
-            comlinkThread.render(true);
-        }
-    })
-    if(game.user.isGM) {
-        comlinkTool.tools.push({
+        };
+
+        v13Tools["fake-conversation"] = {
             name: "fake-conversation",
             icon: "fas fa-message-code",
             title: "Fausse conversation",
+            order: 3,
             button: true,
-            onClick: () => {
-                comlinkFakeThread.render(true);
+            visible: true,
+            onChange: (event, active) => {
+                if (!active) return;
+                comlinkFakeThread.render({force: true});
             }
-        })
+        };
     }
 
-    buttons.push(comlinkTool)
+    controls.comlink = {
+        name: "comlink",
+        title: "Comlink",
+        icon: "fas fa-messages",
+        order: maxOrder + 1,
+        visible: true,
+        activeTool: "idle",
+        onChange: () => {},
+        tools: v13Tools
+    };
 })
 
 
